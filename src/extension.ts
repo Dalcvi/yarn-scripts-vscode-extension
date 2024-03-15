@@ -24,6 +24,11 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	vscode.commands.registerCommand('extension.runYarnScript', runCommand);
+	vscode.commands.registerCommand('extension.resetCache', () => {
+		treeDataProvider.resetCache();
+		treeDataProvider.refresh();
+		vscode.window.showInformationMessage('Yarn scripts cache reset');
+	});
 }
 
 

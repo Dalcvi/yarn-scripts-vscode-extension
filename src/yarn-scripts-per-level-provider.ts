@@ -6,6 +6,8 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
   private _onDidChangeTreeData: vscode.EventEmitter<Script | undefined | void> = new vscode.EventEmitter<Script | undefined | void>();
   readonly onDidChangeTreeData: vscode.Event<Script | undefined | void> = this._onDidChangeTreeData.event;
   private rootOneBehind: string;
+  private scriptsCache: { [packageJsonPath: string]: Script[] } = {};
+  private packageNameCache: { [packageJsonPath: string]: string } = {};
 
   constructor(private workspaceRoot: string) {
     this.rootOneBehind = path.join(workspaceRoot, '..');
@@ -23,37 +25,49 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
     }
 
     if(!element) {
-      return this.getOpenFilePackageJsonName(openFilePath);
+      return this.getOpenFilePackageJsonNames(openFilePath);
+    }
+
+    if(element instanceof Script) {
+      return Promise.resolve([]);
     }
 
     const openFileDir = path.dirname(openFilePath);
 
-    return this.getOpenFileScripts(openFileDir);
+    return this.getPackageJsonScripts(element.pathToPackageJson, openFileDir);
   }
 
   refresh(): void {
     this._onDidChangeTreeData.fire();
   }
 
+  resetCache(): void {
+    this.scriptsCache = {};
+  }
 
-  private async getClosestPackageJson(folderPath: string): Promise<string | undefined> {
+
+  private async getAllPackageJsons(folderPath: string): Promise<string[]> {
     if(folderPath.includes('node_modules')) {
-      return this.getClosestPackageJson(folderPath.split('node_modules')[0]);
+      return this.getAllPackageJsons(folderPath.split('node_modules')[0]);
     }
+
+    const parent = path.join(folderPath, '..');
 
     if (this.pathExists(path.join(folderPath, 'package.json'))) {
-      return path.join(folderPath, 'package.json');
+      return [path.join(folderPath, 'package.json'), ...(await this.getAllPackageJsons(parent))];
     }
     
-    const parent = path.join(folderPath, '..');
     if (parent === folderPath || parent === this.rootOneBehind) {
-      return undefined;
+      return [];
     }
 
-    return this.getClosestPackageJson(parent);
+    return [...(await this.getAllPackageJsons(parent))];
   }
 
   private async getPackageJsonScripts(packageJsonPath: string, openFileDir: string): Promise<Script[]> {
+    if(this.scriptsCache[packageJsonPath]) {
+      return this.scriptsCache[packageJsonPath];
+    }
     if (!this.pathExists(packageJsonPath)) {
       return [];
     }
@@ -61,7 +75,7 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
     const scripts = packageJson.scripts
-      ? Object.keys(packageJson.scripts).map(
+      ? Object.keys(packageJson.scripts).sort().map(
         script => new Script(script, packageJson.scripts[script], vscode.TreeItemCollapsibleState.None, {
           command: 'extension.runYarnScript',
           title: 'Run Script',
@@ -70,33 +84,29 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
       )
       : [];
 
+    this.scriptsCache[packageJsonPath] = scripts;
+
     return scripts;
   }
 
-  private async getOpenFileScripts(openFileDir: string): Promise<Script[]> {
-    const packageJsonPath = await this.getClosestPackageJson(openFileDir);
+  private async getOpenFilePackageJsonNames(openFileDir: string): Promise<TopLevelName[]> {
+    const packageJsonPaths = await this.getAllPackageJsons(openFileDir);
+    return packageJsonPaths.map((packageJsonPath, index) => {
+      if(this.packageNameCache[packageJsonPath]) {
+        return new TopLevelName(this.packageNameCache[packageJsonPath], index === 0 ? vscode.TreeItemCollapsibleState.Expanded :vscode.TreeItemCollapsibleState.Collapsed , packageJsonPath);
+      }
 
-    if (!packageJsonPath) {
-      return [];
-    }
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-    return this.getPackageJsonScripts(packageJsonPath, openFileDir);
-  }
+      if (!packageJson.name) {
+        return undefined;
+      }
 
-  private async getOpenFilePackageJsonName(openFileDir: string): Promise<TopLevelName[]> {
-    const packageJsonPath = await this.getClosestPackageJson(openFileDir);
+      this.packageNameCache[packageJsonPath] = packageJson.name;
 
-    if (!packageJsonPath) {
-      return [];
-    }
-
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-
-    if (!packageJson.name) {
-      return [];
-    }
-
-    return [new TopLevelName(packageJson.name, vscode.TreeItemCollapsibleState.Expanded)];
+    return new TopLevelName(packageJson.name, index === 0 ? vscode.TreeItemCollapsibleState.Expanded :vscode.TreeItemCollapsibleState.Collapsed , packageJsonPath);
+    }).filter(Boolean) as TopLevelName[];
+  
   }
 
 
@@ -113,7 +123,8 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
 class TopLevelName extends vscode.TreeItem {
   constructor(
     public readonly label: string,
-    public readonly collapsibleState: vscode.TreeItemCollapsibleState
+    public readonly collapsibleState: vscode.TreeItemCollapsibleState,
+    public pathToPackageJson: string
   ) {
     super(label, collapsibleState);
   }
