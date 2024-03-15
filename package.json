@@ -3,7 +3,7 @@
   "displayName": "yarn-scripts-per-level",
   "description": "Runs yarn scripts of package.json that is the closest to current open file!",
   "publisher": "DaliusCvilikas",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "repository": "git@github.com:Dalcvi/yarn-scripts-vscode-extension.git",
   "engines": {
     "vscode": "^1.87.0"

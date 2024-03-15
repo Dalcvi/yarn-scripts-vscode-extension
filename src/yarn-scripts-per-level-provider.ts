@@ -8,6 +8,9 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
   private rootOneBehind: string;
   private scriptsCache: { [packageJsonPath: string]: Script[] } = {};
   private packageNameCache: { [packageJsonPath: string]: string } = {};
+  private doesPathExistCache: { [path: string]: boolean } = {};
+  private packageJsonContentsCache: { [packageJsonPath: string]: string } = {};
+  private highestLevelPackageJsonPath: string | undefined;
 
   constructor(private workspaceRoot: string) {
     this.rootOneBehind = path.join(workspaceRoot, '..');
@@ -37,14 +40,51 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
     return this.getPackageJsonScripts(element.pathToPackageJson, openFileDir);
   }
 
-  refresh(): void {
-    this._onDidChangeTreeData.fire();
+  public async refreshIfNeeded(): Promise<void> {
+    const activeTextEditorFilePath = vscode.window.activeTextEditor?.document.fileName;
+    const activeTabUri = vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputText ? vscode.window.tabGroups.activeTabGroup.activeTab.input.uri : undefined;
+    const openFilePath = activeTextEditorFilePath || activeTabUri?.fsPath;
+    
+    if(!openFilePath) {
+      return;
+    }
+
+    const openFileDir = path.dirname(openFilePath);
+
+    const topLevelPackageJsonPath = await this.getTopLevelPackageJsonPath(openFileDir);
+
+    if(topLevelPackageJsonPath !== this.highestLevelPackageJsonPath) {
+      this._onDidChangeTreeData.fire();
+    }
   }
 
   resetCache(): void {
     this.scriptsCache = {};
+    this.packageNameCache = {};
+    this.doesPathExistCache = {};
+    this.packageJsonContentsCache = {};
+    this.highestLevelPackageJsonPath = undefined;
   }
 
+  private async getTopLevelPackageJsonPath(folderPath: string): Promise<string | undefined> {
+    if(folderPath.includes('node_modules')) {
+      return this.getTopLevelPackageJsonPath(folderPath.split('node_modules')[0]);
+    }
+
+    const parent = path.join(folderPath, '..');
+
+    const packageJsonPath = path.join(folderPath, 'package.json');
+
+    if (this.pathExists(packageJsonPath)) {
+      return path.join(folderPath, 'package.json');
+    }
+    
+    if (parent === folderPath || parent === this.rootOneBehind) {
+      return undefined;
+    }
+
+    return this.getTopLevelPackageJsonPath(parent);
+  }
 
   private async getAllPackageJsons(folderPath: string): Promise<string[]> {
     if(folderPath.includes('node_modules')) {
@@ -53,7 +93,9 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
 
     const parent = path.join(folderPath, '..');
 
-    if (this.pathExists(path.join(folderPath, 'package.json'))) {
+    const packageJsonPath = path.join(folderPath, 'package.json');
+
+    if (this.pathExists(packageJsonPath)) {
       return [path.join(folderPath, 'package.json'), ...(await this.getAllPackageJsons(parent))];
     }
     
@@ -72,7 +114,11 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
       return [];
     }
 
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    const packageJson =  this.packageJsonContentsCache[packageJsonPath] || JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+    if(packageJson) {
+      this.packageJsonContentsCache[packageJsonPath] = packageJson;
+    }
 
     const scripts = packageJson.scripts
       ? Object.keys(packageJson.scripts).sort().map(
@@ -91,12 +137,19 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
 
   private async getOpenFilePackageJsonNames(openFileDir: string): Promise<TopLevelName[]> {
     const packageJsonPaths = await this.getAllPackageJsons(openFileDir);
+
+    this.highestLevelPackageJsonPath = packageJsonPaths[0];
+
     return packageJsonPaths.map((packageJsonPath, index) => {
       if(this.packageNameCache[packageJsonPath]) {
         return new TopLevelName(this.packageNameCache[packageJsonPath], index === 0 ? vscode.TreeItemCollapsibleState.Expanded :vscode.TreeItemCollapsibleState.Collapsed , packageJsonPath);
       }
 
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      const packageJson = this.packageJsonContentsCache[packageJsonPath] || JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      if(packageJson) {
+        this.packageJsonContentsCache[packageJsonPath] = packageJson;
+      }
 
       if (!packageJson.name) {
         return undefined;
@@ -112,10 +165,15 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
 
   private pathExists(p: string): boolean {
     try {
+      if(this.doesPathExistCache[p]) {
+        return this.doesPathExistCache[p];
+      }
       fs.accessSync(p);
     } catch (err) {
+      this.doesPathExistCache[p] = false;
       return false;
     }
+    this.doesPathExistCache[p] = true;
     return true;
   }
 }
