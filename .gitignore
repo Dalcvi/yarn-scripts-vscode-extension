@@ -6,3 +6,4 @@ node_modules
 .pnp*
 .vscode-test.mjs
 .vscode
+.DS_STORE

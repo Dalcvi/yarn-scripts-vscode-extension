@@ -1,7 +1,7 @@
 {
   "name": "yarn-scripts-per-level",
-  "displayName": "yarn-scripts-per-level",
-  "description": "Runs yarn scripts of package.json that is the closest to current open file!",
+  "displayName": "Yarn scripts per level",
+  "description": "Runs yarn scripts of package.json that is the closest to current open file! You can also favorite your scripts!",
   "publisher": "DaliusCvilikas",
   "version": "1.2.0",
   "repository": "git@github.com:Dalcvi/yarn-scripts-vscode-extension.git",
@@ -11,13 +11,43 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "*"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "extension.resetCache",
-        "title": "Yarn Scripts: Clean cache"
+        "title": "Yarn Scripts: Clean cache",
+        "icon": {
+          "dark": "media/dark/refresh.svg",
+          "light": "media/light/refresh.svg"
+        }
+      },
+      {
+        "command": "extension.favoriteScript",
+        "title": "Yarn Scripts: Favorite script",
+        "icon": {
+          "dark": "media/dark/star-empty.svg",
+          "light": "media/light/star-empty.svg"
+        }
+      },
+      {
+        "command": "extension.unfavoriteScript",
+        "title": "Yarn Scripts: Unfavorite script",
+        "icon": {
+          "dark": "media/dark/star-full.svg",
+          "light": "media/light/star-full.svg"
+        }
+      },
+      {
+        "command": "extension.removeAllFavorites",
+        "title": "Yarn Scripts: Remove all favorites",
+        "icon": {
+          "dark": "media/dark/close-all.svg",
+          "light": "media/light/close-all.svg"
+        }
       }
     ],
     "views": {
@@ -25,6 +55,15 @@
         {
           "id": "yarnScriptsPerLevel",
           "name": "Yarn scripts per level"
+        }
+      ],
+      "view/title": [
+        {
+          "name": "Clean cache",
+          "id": "yarnScriptsResetCache",
+          "command": "extension.resetCache",
+          "when": "exporer == yarnScriptsPerLevel",
+          "group": "navigation"
         }
       ]
     }
