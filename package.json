@@ -3,7 +3,7 @@
   "displayName": "Yarn scripts per level",
   "description": "Runs yarn scripts of package.json that is the closest to current open file! You can also favorite your scripts!",
   "publisher": "DaliusCvilikas",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "repository": "git@github.com:Dalcvi/yarn-scripts-vscode-extension.git",
   "engines": {
     "vscode": "^1.87.0"
@@ -24,6 +24,10 @@
           "dark": "media/dark/refresh.svg",
           "light": "media/light/refresh.svg"
         }
+      },
+      {
+        "command": "extension.goToClosestPackageJsonDir",
+        "title": "Yarn Scripts: Go to closest package.json dir"
       },
       {
         "command": "extension.favoriteScript",

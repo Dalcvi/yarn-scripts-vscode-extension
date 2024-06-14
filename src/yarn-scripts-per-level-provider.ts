@@ -42,8 +42,8 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
     return this.getPackageJsonScripts(element.pathToPackageJson);
   }
 
-  public async refreshIfNeeded(): Promise<void> {
-    const activeTextEditorFilePath = vscode.window.activeTextEditor?.document.fileName;
+  public async getOpenDirPackageJsonPath(): Promise<string | undefined> {
+        const activeTextEditorFilePath = vscode.window.activeTextEditor?.document.fileName;
     const activeTabUri =
       vscode.window.tabGroups.activeTabGroup.activeTab?.input instanceof vscode.TabInputText
         ? vscode.window.tabGroups.activeTabGroup.activeTab.input.uri
@@ -57,6 +57,12 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
     const openFileDir = path.dirname(openFilePath);
 
     const topLevelPackageJsonPath = await this.getTopLevelPackageJsonPath(openFileDir);
+
+    return topLevelPackageJsonPath;
+  }
+
+  public async refreshIfNeeded(): Promise<void> {
+    const topLevelPackageJsonPath = await this.getOpenDirPackageJsonPath();
 
     if (topLevelPackageJsonPath !== this.highestLevelPackageJsonPath) {
       this._onDidChangeTreeData.fire();
@@ -201,7 +207,7 @@ export class YarnScriptsPerLevelProvider implements vscode.TreeDataProvider<Scri
     return scripts;
   }
 
-  private async getOpenFilePackageJsonNames(openFileDir: string): Promise<TopLevelName[]> {
+  public async getOpenFilePackageJsonNames(openFileDir: string): Promise<TopLevelName[]> {
     const packageJsonPaths = await this.getAllPackageJsons(openFileDir);
 
     this.highestLevelPackageJsonPath = packageJsonPaths[0];

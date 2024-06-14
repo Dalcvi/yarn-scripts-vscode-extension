@@ -3,6 +3,8 @@
 import * as vscode from 'vscode';
 import { YarnScriptsPerLevelProvider } from './yarn-scripts-per-level-provider';
 import { runCommand } from './run-command';
+import path from 'path';
+import { Script } from 'vm';
 // import { FavoriteYarnScriptsProvider } from './favorite-yarn-scripts-provider';
 
 // This method is called when your extension is activated
@@ -39,11 +41,28 @@ export function activate(context: vscode.ExtensionContext) {
   const extensionVersion = vscode.extensions.getExtension('vscode-yarn-script-runner')?.packageJSON.version;
   const lastExtensionVersion = context.workspaceState.get('extensionVersion', extensionVersion);
 
-  if(extensionVersion !== lastExtensionVersion) {
+  if (extensionVersion !== lastExtensionVersion) {
     context.workspaceState.update('extensionVersion', extensionVersion);
     vscode.commands.executeCommand('extension.resetCache');
   }
+
+  vscode.commands.registerCommand('extension.goToClosestPackageJsonDir', async () => {
+    const closestPackageJsonPath = await yarnScriptsPerLevelProvider.getOpenDirPackageJsonPath();
+    if (!closestPackageJsonPath) {
+      vscode.window.showErrorMessage('No package.json found');
+      return;
+    }
+
+    const packageJsonNames = await yarnScriptsPerLevelProvider.getOpenFilePackageJsonNames(closestPackageJsonPath);
+    if (!packageJsonNames || !packageJsonNames[0]?.label) {
+      vscode.window.showErrorMessage('No package.json found');
+      return;
+    }
+    
+    const packageJsonDir = path.dirname(closestPackageJsonPath);
+    runCommand('', packageJsonDir, packageJsonNames[0].label);
+  });
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() { }
